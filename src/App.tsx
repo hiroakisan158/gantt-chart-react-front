@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { generateClient } from "aws-amplify/data";
@@ -167,6 +167,103 @@ export default function App() {
     await client.models.GanttTask.delete({ id: task.id });
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
   }
+
+  async function moveTask(index: number, direction: "up" | "down") {
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= tasks.length) return;
+
+    const a = tasks[index];
+    const b = tasks[swapIndex];
+
+    // Optimistic update
+    setTasks((prev) => {
+      const next = [...prev];
+      next[index] = { ...b, displayOrder: index };
+      next[swapIndex] = { ...a, displayOrder: swapIndex };
+      return next;
+    });
+
+    // Persist to DynamoDB
+    await Promise.all([
+      client.models.GanttTask.update({ id: a.id, displayOrder: swapIndex }),
+      client.models.GanttTask.update({ id: b.id, displayOrder: index }),
+    ]);
+  }
+
+  // Custom TaskListTable with up/down buttons
+  const CustomTaskListTable = useMemo(() => {
+    return function TaskListTable({
+      tasks: listTasks,
+      rowHeight,
+      rowWidth,
+    }: {
+      rowHeight: number;
+      rowWidth: string;
+      fontFamily: string;
+      fontSize: string;
+      locale: string;
+      tasks: GanttTask[];
+      selectedTaskId: string;
+      setSelectedTask: (taskId: string) => void;
+      onExpanderClick: (task: GanttTask) => void;
+    }) {
+      return (
+        <div style={{ fontFamily: "inherit" }}>
+          {listTasks.map((task, index) => (
+            <div
+              key={task.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                height: rowHeight,
+                width: rowWidth,
+                borderBottom: "1px solid #e2e8f0",
+                paddingLeft: 8,
+                boxSizing: "border-box",
+                background: "#fff",
+              }}
+            >
+              {/* Up / Down buttons */}
+              <div style={{ display: "flex", flexDirection: "column", marginRight: 4, flexShrink: 0 }}>
+                <button
+                  onClick={() => moveTask(index, "up")}
+                  disabled={index === 0}
+                  style={arrowBtnStyle(index === 0)}
+                  title="上へ"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => moveTask(index, "down")}
+                  disabled={index === listTasks.length - 1}
+                  style={arrowBtnStyle(index === listTasks.length - 1)}
+                  title="下へ"
+                >
+                  ▼
+                </button>
+              </div>
+              {/* Task name */}
+              <span
+                style={{
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontSize: "0.875em",
+                  cursor: "pointer",
+                }}
+                onDoubleClick={() => openEditTask(task)}
+                title={task.name}
+              >
+                {task.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   // gantt-task-react callbacks
   async function handleTaskChange(task: GanttTask) {
@@ -353,8 +450,9 @@ export default function App() {
               onProgressChange={handleProgressChange}
               onDoubleClick={openEditTask}
               onDelete={deleteTask}
-              listCellWidth="180px"
+              listCellWidth="220px"
               columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
+              TaskListTable={CustomTaskListTable}
             />
           )}
         </div>
@@ -509,3 +607,16 @@ const cancelBtnStyle: React.CSSProperties = {
   border: "1px solid #cbd5e1",
   borderRadius: 6,
 };
+
+function arrowBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: "block",
+    padding: "0 2px",
+    lineHeight: 1,
+    fontSize: "0.6em",
+    background: "none",
+    border: "none",
+    cursor: disabled ? "default" : "pointer",
+    color: disabled ? "#cbd5e1" : "#64748b",
+  };
+}
