@@ -8,11 +8,10 @@ import type { Schema } from "../amplify/data/resource";
 const client = generateClient<Schema>();
 
 // Module-level object updated on every App render.
-// This avoids stale-closure / context-propagation issues with gantt-task-react.
+// Avoids stale-closure / context-propagation issues with gantt-task-react.
 const _h = {
-  moveTask: (_index: number, _dir: "up" | "down") => {},
+  moveTask: (_taskId: string, _adjacentTaskId: string) => {},
   openEditTask: (_task: GanttTask) => {},
-  totalTasks: 0,
 };
 
 function CustomTaskListTable({
@@ -34,7 +33,7 @@ function CustomTaskListTable({
     <div>
       {listTasks.map((task, index) => {
         const isFirst = index === 0;
-        const isLast = index === _h.totalTasks - 1;
+        const isLast = index === listTasks.length - 1;
         return (
           <div
             key={task.id}
@@ -51,13 +50,19 @@ function CustomTaskListTable({
           >
             <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, marginRight: 4 }}>
               <button
-                onMouseDown={(e) => { e.stopPropagation(); _h.moveTask(index, "up"); }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (!isFirst) _h.moveTask(task.id, listTasks[index - 1].id);
+                }}
                 disabled={isFirst}
                 style={arrowBtnStyle(isFirst)}
                 title="上へ"
               >▲</button>
               <button
-                onMouseDown={(e) => { e.stopPropagation(); _h.moveTask(index, "down"); }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (!isLast) _h.moveTask(task.id, listTasks[index + 1].id);
+                }}
                 disabled={isLast}
                 style={arrowBtnStyle(isLast)}
                 title="下へ"
@@ -130,7 +135,6 @@ export default function App() {
   });
 
   // Always sync _h with the latest closures before render
-  _h.totalTasks = tasks.length;
   _h.moveTask = moveTask;
   _h.openEditTask = openEditTask;
 
@@ -223,8 +227,8 @@ export default function App() {
       progress: taskForm.progress,
       type: taskForm.type,
       displayOrder: editingTask
-        ? tasks.findIndex((t) => t.id === editingTask.id)
-        : tasks.length,
+        ? (editingTask.displayOrder ?? tasks.findIndex((t) => t.id === editingTask.id) + 1)
+        : tasks.length + 1,
     };
     if (editingTask) {
       const { data } = await client.models.GanttTask.update({
@@ -248,24 +252,26 @@ export default function App() {
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
   }
 
-  async function moveTask(index: number, direction: "up" | "down") {
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= tasks.length) return;
+  async function moveTask(taskId: string, adjacentTaskId: string) {
+    const taskA = tasks.find((t) => t.id === taskId);
+    const taskB = tasks.find((t) => t.id === adjacentTaskId);
+    if (!taskA || !taskB) return;
 
-    const a = tasks[index];
-    const b = tasks[swapIndex];
+    const orderA = taskA.displayOrder ?? 1;
+    const orderB = taskB.displayOrder ?? 1;
 
-    // Optimistic update
-    setTasks((prev) => {
-      const next = [...prev];
-      next[index] = { ...b, displayOrder: index };
-      next[swapIndex] = { ...a, displayOrder: swapIndex };
-      return next;
-    });
+    // Optimistic update: swap displayOrder values
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id === taskId) return { ...t, displayOrder: orderB };
+        if (t.id === adjacentTaskId) return { ...t, displayOrder: orderA };
+        return t;
+      })
+    );
 
     await Promise.all([
-      client.models.GanttTask.update({ id: a.id, displayOrder: swapIndex }),
-      client.models.GanttTask.update({ id: b.id, displayOrder: index }),
+      client.models.GanttTask.update({ id: taskId, displayOrder: orderB }),
+      client.models.GanttTask.update({ id: adjacentTaskId, displayOrder: orderA }),
     ]);
   }
 
