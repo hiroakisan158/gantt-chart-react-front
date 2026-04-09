@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { generateClient } from "aws-amplify/data";
@@ -7,12 +7,13 @@ import type { Schema } from "../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
-// Context to pass handlers into the custom TaskListTable (defined outside App)
-const GanttActionsContext = createContext<{
-  moveTask: (index: number, dir: "up" | "down") => void;
-  openEditTask: (task: GanttTask) => void;
-  totalTasks: number;
-}>({ moveTask: () => {}, openEditTask: () => {}, totalTasks: 0 });
+// Module-level object updated on every App render.
+// This avoids stale-closure / context-propagation issues with gantt-task-react.
+const _h = {
+  moveTask: (_index: number, _dir: "up" | "down") => {},
+  openEditTask: (_task: GanttTask) => {},
+  totalTasks: 0,
+};
 
 function CustomTaskListTable({
   tasks: listTasks,
@@ -29,57 +30,57 @@ function CustomTaskListTable({
   setSelectedTask: (taskId: string) => void;
   onExpanderClick: (task: GanttTask) => void;
 }) {
-  const { moveTask, openEditTask, totalTasks } = useContext(GanttActionsContext);
   return (
-    <div style={{ fontFamily: "inherit" }}>
-      {listTasks.map((task, index) => (
-        <div
-          key={task.id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            height: rowHeight,
-            width: rowWidth,
-            borderBottom: "1px solid #e2e8f0",
-            paddingLeft: 8,
-            boxSizing: "border-box",
-            background: "#fff",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", marginRight: 4, flexShrink: 0 }}>
-            <button
-              onClick={() => moveTask(index, "up")}
-              disabled={index === 0}
-              style={arrowBtnStyle(index === 0)}
-              title="上へ"
-            >
-              ▲
-            </button>
-            <button
-              onClick={() => moveTask(index, "down")}
-              disabled={index === totalTasks - 1}
-              style={arrowBtnStyle(index === totalTasks - 1)}
-              title="下へ"
-            >
-              ▼
-            </button>
-          </div>
-          <span
+    <div>
+      {listTasks.map((task, index) => {
+        const isFirst = index === 0;
+        const isLast = index === _h.totalTasks - 1;
+        return (
+          <div
+            key={task.id}
             style={{
-              flex: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              fontSize: "0.875em",
-              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              height: rowHeight,
+              width: rowWidth,
+              borderBottom: "1px solid #e2e8f0",
+              paddingLeft: 6,
+              boxSizing: "border-box",
+              background: "#fff",
             }}
-            onDoubleClick={() => openEditTask(task)}
-            title={task.name}
           >
-            {task.name}
-          </span>
-        </div>
-      ))}
+            <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, marginRight: 4 }}>
+              <button
+                onMouseDown={(e) => { e.stopPropagation(); _h.moveTask(index, "up"); }}
+                disabled={isFirst}
+                style={arrowBtnStyle(isFirst)}
+                title="上へ"
+              >▲</button>
+              <button
+                onMouseDown={(e) => { e.stopPropagation(); _h.moveTask(index, "down"); }}
+                disabled={isLast}
+                style={arrowBtnStyle(isLast)}
+                title="下へ"
+              >▼</button>
+            </div>
+            <span
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontSize: "0.875em",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onDoubleClick={() => _h.openEditTask(task)}
+              title={task.name}
+            >
+              {task.name}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -128,6 +129,11 @@ export default function App() {
     type: "task" as GanttTask["type"],
   });
 
+  // Always sync _h with the latest closures before render
+  _h.totalTasks = tasks.length;
+  _h.moveTask = moveTask;
+  _h.openEditTask = openEditTask;
+
   // Load projects on mount
   useEffect(() => {
     client.models.GanttProject.list().then(({ data }) => {
@@ -172,10 +178,7 @@ export default function App() {
 
   async function deleteProject(id: string) {
     if (!confirm("このプロジェクトとタスクをすべて削除しますか？")) return;
-    // Delete all tasks first
-    const { data: taskData } = await client.models.GanttTask.listByProject({
-      projectId: id,
-    });
+    const { data: taskData } = await client.models.GanttTask.listByProject({ projectId: id });
     await Promise.all(taskData.map((t) => client.models.GanttTask.delete({ id: t.id })));
     await client.models.GanttProject.delete({ id });
     setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -260,14 +263,12 @@ export default function App() {
       return next;
     });
 
-    // Persist to DynamoDB
     await Promise.all([
       client.models.GanttTask.update({ id: a.id, displayOrder: swapIndex }),
       client.models.GanttTask.update({ id: b.id, displayOrder: index }),
     ]);
   }
 
-  // gantt-task-react callbacks
   async function handleTaskChange(task: GanttTask) {
     const { data } = await client.models.GanttTask.update({
       id: task.id,
@@ -278,10 +279,6 @@ export default function App() {
     if (data) {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? toGanttTask(data) : t)));
     }
-  }
-
-  async function handleProgressChange(task: GanttTask) {
-    await handleTaskChange(task);
   }
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -396,7 +393,6 @@ export default function App() {
             {selectedProject ? selectedProject.name : "プロジェクトを選択してください"}
           </h2>
 
-          {/* View mode selector */}
           <div style={{ display: "flex", gap: 4 }}>
             {([ViewMode.Day, ViewMode.Week, ViewMode.Month] as ViewMode[]).map((mode) => (
               <button
@@ -445,21 +441,17 @@ export default function App() {
               タスクがありません。「+ Add Task」から追加してください
             </div>
           ) : (
-            <GanttActionsContext.Provider
-              value={{ moveTask, openEditTask, totalTasks: tasks.length }}
-            >
-              <Gantt
-                tasks={tasks}
-                viewMode={viewMode}
-                onDateChange={handleTaskChange}
-                onProgressChange={handleProgressChange}
-                onDoubleClick={openEditTask}
-                onDelete={deleteTask}
-                listCellWidth="220px"
-                columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
-                TaskListTable={CustomTaskListTable}
-              />
-            </GanttActionsContext.Provider>
+            <Gantt
+              tasks={tasks}
+              viewMode={viewMode}
+              onDateChange={handleTaskChange}
+              onProgressChange={handleTaskChange}
+              onDoubleClick={openEditTask}
+              onDelete={deleteTask}
+              listCellWidth="220px"
+              columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
+              TaskListTable={CustomTaskListTable}
+            />
           )}
         </div>
       </main>
