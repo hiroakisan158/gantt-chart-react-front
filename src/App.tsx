@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { generateClient } from "aws-amplify/data";
@@ -6,6 +6,83 @@ import { useAuthenticator } from "@aws-amplify/ui-react";
 import type { Schema } from "../amplify/data/resource";
 
 const client = generateClient<Schema>();
+
+// Context to pass handlers into the custom TaskListTable (defined outside App)
+const GanttActionsContext = createContext<{
+  moveTask: (index: number, dir: "up" | "down") => void;
+  openEditTask: (task: GanttTask) => void;
+  totalTasks: number;
+}>({ moveTask: () => {}, openEditTask: () => {}, totalTasks: 0 });
+
+function CustomTaskListTable({
+  tasks: listTasks,
+  rowHeight,
+  rowWidth,
+}: {
+  rowHeight: number;
+  rowWidth: string;
+  fontFamily: string;
+  fontSize: string;
+  locale: string;
+  tasks: GanttTask[];
+  selectedTaskId: string;
+  setSelectedTask: (taskId: string) => void;
+  onExpanderClick: (task: GanttTask) => void;
+}) {
+  const { moveTask, openEditTask, totalTasks } = useContext(GanttActionsContext);
+  return (
+    <div style={{ fontFamily: "inherit" }}>
+      {listTasks.map((task, index) => (
+        <div
+          key={task.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: rowHeight,
+            width: rowWidth,
+            borderBottom: "1px solid #e2e8f0",
+            paddingLeft: 8,
+            boxSizing: "border-box",
+            background: "#fff",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", marginRight: 4, flexShrink: 0 }}>
+            <button
+              onClick={() => moveTask(index, "up")}
+              disabled={index === 0}
+              style={arrowBtnStyle(index === 0)}
+              title="上へ"
+            >
+              ▲
+            </button>
+            <button
+              onClick={() => moveTask(index, "down")}
+              disabled={index === totalTasks - 1}
+              style={arrowBtnStyle(index === totalTasks - 1)}
+              title="下へ"
+            >
+              ▼
+            </button>
+          </div>
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: "0.875em",
+              cursor: "pointer",
+            }}
+            onDoubleClick={() => openEditTask(task)}
+            title={task.name}
+          >
+            {task.name}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type Project = Schema["GanttProject"]["type"];
 type TaskRecord = Schema["GanttTask"]["type"];
@@ -190,81 +267,6 @@ export default function App() {
     ]);
   }
 
-  // Custom TaskListTable with up/down buttons
-  const CustomTaskListTable = useMemo(() => {
-    return function TaskListTable({
-      tasks: listTasks,
-      rowHeight,
-      rowWidth,
-    }: {
-      rowHeight: number;
-      rowWidth: string;
-      fontFamily: string;
-      fontSize: string;
-      locale: string;
-      tasks: GanttTask[];
-      selectedTaskId: string;
-      setSelectedTask: (taskId: string) => void;
-      onExpanderClick: (task: GanttTask) => void;
-    }) {
-      return (
-        <div style={{ fontFamily: "inherit" }}>
-          {listTasks.map((task, index) => (
-            <div
-              key={task.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                height: rowHeight,
-                width: rowWidth,
-                borderBottom: "1px solid #e2e8f0",
-                paddingLeft: 8,
-                boxSizing: "border-box",
-                background: "#fff",
-              }}
-            >
-              {/* Up / Down buttons */}
-              <div style={{ display: "flex", flexDirection: "column", marginRight: 4, flexShrink: 0 }}>
-                <button
-                  onClick={() => moveTask(index, "up")}
-                  disabled={index === 0}
-                  style={arrowBtnStyle(index === 0)}
-                  title="上へ"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => moveTask(index, "down")}
-                  disabled={index === listTasks.length - 1}
-                  style={arrowBtnStyle(index === listTasks.length - 1)}
-                  title="下へ"
-                >
-                  ▼
-                </button>
-              </div>
-              {/* Task name */}
-              <span
-                style={{
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontSize: "0.875em",
-                  cursor: "pointer",
-                }}
-                onDoubleClick={() => openEditTask(task)}
-                title={task.name}
-              >
-                {task.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks]);
-
   // gantt-task-react callbacks
   async function handleTaskChange(task: GanttTask) {
     const { data } = await client.models.GanttTask.update({
@@ -443,17 +445,21 @@ export default function App() {
               タスクがありません。「+ Add Task」から追加してください
             </div>
           ) : (
-            <Gantt
-              tasks={tasks}
-              viewMode={viewMode}
-              onDateChange={handleTaskChange}
-              onProgressChange={handleProgressChange}
-              onDoubleClick={openEditTask}
-              onDelete={deleteTask}
-              listCellWidth="220px"
-              columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
-              TaskListTable={CustomTaskListTable}
-            />
+            <GanttActionsContext.Provider
+              value={{ moveTask, openEditTask, totalTasks: tasks.length }}
+            >
+              <Gantt
+                tasks={tasks}
+                viewMode={viewMode}
+                onDateChange={handleTaskChange}
+                onProgressChange={handleProgressChange}
+                onDoubleClick={openEditTask}
+                onDelete={deleteTask}
+                listCellWidth="220px"
+                columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
+                TaskListTable={CustomTaskListTable}
+              />
+            </GanttActionsContext.Provider>
           )}
         </div>
       </main>
