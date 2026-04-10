@@ -14,19 +14,29 @@ const _h = {
   openEditTask: (_task: GanttTask) => {},
 };
 
-// gantt-task-react はタッチイベントに対応していないため、
-// 内部のスクロールコンテナを直接操作してモバイルの横スクロールを実現する
-function GanttWithTouchScroll({ children }: { children: React.ReactNode }) {
+// gantt-task-react はタッチ・カレンダーカスタマイズ API を持たないため、
+// DOM を直接操作してモバイル対応を行うラッパー
+function GanttWrapper({
+  children,
+  isMobile,
+  viewMode,
+  tasks,
+}: {
+  children: React.ReactNode;
+  isMobile: boolean;
+  viewMode: ViewMode;
+  tasks: GanttTask[];
+}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isHorizontalScroll = useRef<boolean | null>(null);
 
+  // ── タッチ横スクロール ──────────────────────────────────────
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
 
-    // ライブラリの横スクロールコンテナ（HorizontalScroll コンポーネントのラッパー）
     const getScrollEl = () => el.querySelector<HTMLElement>("._2k9Ys");
 
     const onTouchStart = (e: TouchEvent) => {
@@ -38,16 +48,12 @@ function GanttWithTouchScroll({ children }: { children: React.ReactNode }) {
     const onTouchMove = (e: TouchEvent) => {
       const dx = e.touches[0].clientX - touchStartX.current;
       const dy = e.touches[0].clientY - touchStartY.current;
-
-      // 最初のムーブで方向を確定させる
       if (isHorizontalScroll.current === null) {
         isHorizontalScroll.current = Math.abs(dx) > Math.abs(dy);
       }
       if (!isHorizontalScroll.current) return;
-
       const scrollEl = getScrollEl();
       if (!scrollEl) return;
-
       scrollEl.scrollLeft -= dx;
       touchStartX.current = e.touches[0].clientX;
       e.preventDefault();
@@ -60,6 +66,71 @@ function GanttWithTouchScroll({ children }: { children: React.ReactNode }) {
       el.removeEventListener("touchmove", onTouchMove);
     };
   }, []);
+
+  // ── モバイル Day ビュー: 曜日テキスト簡略化 & 土日色付け ──────
+  useEffect(() => {
+    if (!isMobile || viewMode !== ViewMode.Day) return;
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    const rafId = requestAnimationFrame(() => {
+      const locale = window.navigator.language;
+      // ライブラリと同じ API で土曜・日曜の短縮名を取得
+      // 2024-01-06 = 土曜、2024-01-07 = 日曜
+      const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
+      const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
+
+      // カレンダー下部テキスト要素 (class: _9w8d5)
+      const textEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
+      if (textEls.length === 0) return;
+
+      // 列幅を隣接テキストの x 差分から算出
+      let columnWidth = 40;
+      if (textEls.length >= 2) {
+        const x0 = parseFloat(textEls[0].getAttribute("x") ?? "0");
+        const x1 = parseFloat(textEls[1].getAttribute("x") ?? "40");
+        columnWidth = Math.abs(x1 - x0);
+      } else {
+        columnWidth = parseFloat(textEls[0].getAttribute("x") ?? "20") * 2;
+      }
+
+      // グリッド全体の高さ: ticks の line[y2] から取得
+      const firstTick = el.querySelector<SVGLineElement>("g.ticks line");
+      const gridHeight = firstTick ? parseFloat(firstTick.getAttribute("y2") ?? "0") : 0;
+
+      // 前回注入した土日 rect を除去
+      el.querySelectorAll(".weekend-highlight").forEach((r) => r.remove());
+
+      const gridBodyG = el.querySelector<SVGGElement>("g.gridBody");
+
+      textEls.forEach((textEl) => {
+        const original = textEl.textContent ?? "";
+        const x = parseFloat(textEl.getAttribute("x") ?? "0");
+        const colLeft = x - columnWidth / 2;
+
+        const isSat = original.startsWith(satName + ",");
+        const isSun = original.startsWith(sunName + ",");
+
+        // 曜日を除いた日付数字のみ表示
+        const parts = original.split(", ");
+        textEl.textContent = parts[parts.length - 1];
+
+        // 土日の列背景色を注入
+        if ((isSat || isSun) && gridBodyG && gridHeight > 0) {
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          rect.setAttribute("x", String(colLeft));
+          rect.setAttribute("y", "0");
+          rect.setAttribute("width", String(columnWidth));
+          rect.setAttribute("height", String(gridHeight));
+          rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)");
+          rect.classList.add("weekend-highlight");
+          gridBodyG.insertBefore(rect, gridBodyG.firstChild);
+        }
+      });
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [isMobile, viewMode, tasks]);
 
   return <div ref={wrapperRef}>{children}</div>;
 }
@@ -197,7 +268,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<GanttTask[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Day);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -578,7 +649,7 @@ export default function App() {
               タスクがありません。「+ Add Task」から追加してください
             </div>
           ) : (
-            <GanttWithTouchScroll>
+            <GanttWrapper isMobile={isMobile} viewMode={viewMode} tasks={tasks}>
               <Gantt
                 tasks={tasks}
                 viewMode={viewMode}
@@ -591,7 +662,7 @@ export default function App() {
                 TaskListTable={CustomTaskListTable}
                 TaskListHeader={CustomTaskListHeader}
               />
-            </GanttWithTouchScroll>
+            </GanttWrapper>
           )}
         </div>
       </main>
