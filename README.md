@@ -2,6 +2,8 @@
 
 Vite + React + AWS Amplify Gen2 で構築したシンプルなガントチャートアプリです。  
 プロジェクトごとにタスクを管理し、ガントチャートで視覚的に確認できます。
+<img width="1032" height="474" alt="image" src="https://github.com/user-attachments/assets/3b3f997d-4ff0-4102-83c8-6b875fa99fd9" />
+
 
 ## 機能
 
