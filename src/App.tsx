@@ -14,6 +14,36 @@ const _h = {
   openEditTask: (_task: GanttTask) => {},
 };
 
+function CustomTaskListHeader({
+  headerHeight,
+  rowWidth,
+}: {
+  headerHeight: number;
+  rowWidth: string;
+  fontFamily: string;
+  fontSize: string;
+}) {
+  return (
+    <div
+      style={{
+        height: headerHeight,
+        width: rowWidth,
+        background: "#fff",
+        borderBottom: "1px solid #e2e8f0",
+        display: "flex",
+        alignItems: "center",
+        paddingLeft: 6,
+        boxSizing: "border-box",
+        fontWeight: 600,
+        fontSize: "0.8em",
+        color: "#64748b",
+      }}
+    >
+      タスク名
+    </div>
+  );
+}
+
 function CustomTaskListTable({
   tasks: listTasks,
   rowHeight,
@@ -118,6 +148,14 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<GanttTask[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   // --- Project modal ---
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -291,6 +329,19 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* Mobile backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 99,
+          }}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         style={{
@@ -300,6 +351,15 @@ export default function App() {
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
+          ...(isMobile && {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            height: "100vh",
+            zIndex: 100,
+            transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform 0.25s ease",
+          }),
         }}
       >
         <div style={{ padding: "16px 12px 8px", borderBottom: "1px solid #313244" }}>
@@ -330,7 +390,7 @@ export default function App() {
             >
               <span
                 style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                onClick={() => setSelectedProjectId(p.id)}
+                onClick={() => { setSelectedProjectId(p.id); if (isMobile) setSidebarOpen(false); }}
               >
                 {p.name}
               </span>
@@ -395,7 +455,27 @@ export default function App() {
             flexShrink: 0,
           }}
         >
-          <h2 style={{ fontWeight: 700, fontSize: "1.1em", flex: 1 }}>
+          {isMobile && (
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                flexShrink: 0,
+              }}
+              title="メニュー"
+            >
+              <span style={{ display: "block", width: 20, height: 2, background: "#333" }} />
+              <span style={{ display: "block", width: 20, height: 2, background: "#333" }} />
+              <span style={{ display: "block", width: 20, height: 2, background: "#333" }} />
+            </button>
+          )}
+          <h2 style={{ fontWeight: 700, fontSize: "1.1em", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {selectedProject ? selectedProject.name : "プロジェクトを選択してください"}
           </h2>
 
@@ -422,16 +502,17 @@ export default function App() {
             <button
               onClick={openNewTask}
               style={{
-                padding: "6px 14px",
+                padding: isMobile ? "6px 10px" : "6px 14px",
                 background: "#3b82f6",
                 color: "#fff",
                 border: "none",
                 borderRadius: 6,
                 fontWeight: 600,
                 fontSize: "0.9em",
+                flexShrink: 0,
               }}
             >
-              + Add Task
+              {isMobile ? "+" : "+ Add Task"}
             </button>
           )}
         </div>
@@ -454,9 +535,10 @@ export default function App() {
               onProgressChange={handleTaskChange}
               onDoubleClick={openEditTask}
               onDelete={deleteTask}
-              listCellWidth="220px"
-              columnWidth={viewMode === ViewMode.Month ? 300 : viewMode === ViewMode.Week ? 250 : 60}
+              listCellWidth={isMobile ? "140px" : "220px"}
+              columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
               TaskListTable={CustomTaskListTable}
+              TaskListHeader={CustomTaskListHeader}
             />
           )}
         </div>
