@@ -144,15 +144,20 @@ function GanttWrapper({
       observer?.disconnect();
       el.querySelectorAll(".weekend-highlight").forEach((r) => r.remove());
 
+      // g.rows (白い行背景) の直後に挿入
+      // (firstChild 位置に挿入すると白背景 fill:#fff に隠れる)
+      const rowsG = gridBodyG.querySelector<SVGGElement>("g.rows");
+      const insertAfterRows = rowsG ? rowsG.nextSibling : gridBodyG.firstChild;
+
       weekendCols.forEach(({ colLeft, isSat }) => {
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("x", String(colLeft));
         rect.setAttribute("y", "0");
         rect.setAttribute("width", String(cachedColWidth));
         rect.setAttribute("height", String(gridHeight));
-        rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)");
+        rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.22)" : "rgba(239,68,68,0.22)");
         rect.classList.add("weekend-highlight");
-        gridBodyG.insertBefore(rect, gridBodyG.firstChild);
+        gridBodyG.insertBefore(rect, insertAfterRows);
       });
 
       if (observer) observer.observe(gridBodyG, { childList: true });
