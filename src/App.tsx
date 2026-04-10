@@ -67,92 +67,94 @@ function GanttWrapper({
     };
   }, []);
 
-  // ── モバイル Day ビュー: 曜日テキスト簡略化 & 土日色付け ──────
+  // ── Day ビュー: 土日色付け & モバイルのみ曜日テキスト簡略化 ──────
   useEffect(() => {
-    if (!isMobile || viewMode !== ViewMode.Day) return;
+    if (viewMode !== ViewMode.Day) return;
     const el = wrapperRef.current;
     if (!el) return;
 
-    // g.gridBody は React が管理する要素のため、リコンシリエーション時に
-    // 注入した rect が削除される。MutationObserver で削除を検知して即再注入する。
+    // ---- キャッシュ変数 (このエフェクトのライフサイクル中に保持) ----
+    // React のリコンシリエーションで rect が除去されるたびに MutationObserver が
+    // applyColors を再呼び出しするが、2回目以降はテキストが簡略化済みのため
+    // テキスト解析できない。週末列の位置を初回のみ計算してキャッシュする。
+    let weekendCols: Array<{ colLeft: number; isSat: boolean }> = [];
+    let cachedColWidth = 40;
     let observer: MutationObserver | null = null;
 
-    const applyWeekendColors = () => {
+    const applyColors = () => {
       const gridBodyG = el.querySelector<SVGGElement>("g.gridBody");
       if (!gridBodyG) return;
 
-      // カレンダー下部テキスト要素 (ライブラリ内部 class: _9w8d5)
-      const textEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
-      if (textEls.length === 0) return;
+      // ---- 初回のみ: 週末列を計算してキャッシュ ----
+      if (weekendCols.length === 0) {
+        const textEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
+        if (textEls.length === 0) return;
 
-      // 列幅: 隣接テキストの x 差分から算出
-      let columnWidth = 40;
-      if (textEls.length >= 2) {
-        const x0 = parseFloat(textEls[0].getAttribute("x") ?? "0");
-        const x1 = parseFloat(textEls[1].getAttribute("x") ?? "40");
-        columnWidth = Math.abs(x1 - x0);
-      } else {
-        columnWidth = parseFloat(textEls[0].getAttribute("x") ?? "20") * 2;
+        if (textEls.length >= 2) {
+          const x0 = parseFloat(textEls[0].getAttribute("x") ?? "0");
+          const x1 = parseFloat(textEls[1].getAttribute("x") ?? "40");
+          cachedColWidth = Math.abs(x1 - x0);
+        } else {
+          cachedColWidth = parseFloat(textEls[0].getAttribute("x") ?? "20") * 2;
+        }
+
+        // today rect の x 座標で曜日をアンカー (ロケール非依存)
+        const todayRectEl = el.querySelector<SVGRectElement>("g.today rect[x]");
+        const todayX = todayRectEl ? parseFloat(todayRectEl.getAttribute("x") ?? "-1") : -1;
+        const todayColIndex = todayX >= 0 ? Math.round(todayX / cachedColWidth) : -1;
+        const todayDow = new Date().getDay(); // 0=日, 6=土
+
+        // today が範囲外の場合のフォールバック: テキスト解析
+        // (初回呼び出し時のみ有効。テキストは未簡略化のはず)
+        const locale = window.navigator.language;
+        const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
+        const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
+
+        textEls.forEach((textEl) => {
+          const original = textEl.textContent ?? "";
+          const x = parseFloat(textEl.getAttribute("x") ?? "0");
+          const colLeft = x - cachedColWidth / 2;
+          const colIndex = Math.round(colLeft / cachedColWidth);
+
+          let isSat = false;
+          let isSun = false;
+          if (todayColIndex >= 0) {
+            const dow = ((todayDow + colIndex - todayColIndex) % 7 + 7) % 7;
+            isSat = dow === 6;
+            isSun = dow === 0;
+          } else {
+            isSat = original.startsWith(satName + ",");
+            isSun = original.startsWith(sunName + ",");
+          }
+          if (isSat || isSun) weekendCols.push({ colLeft, isSat });
+
+          // モバイルのみ: 曜日を除いた日付数字のみ表示
+          if (isMobile) {
+            const parts = original.split(", ");
+            textEl.textContent = parts[parts.length - 1];
+          }
+        });
       }
 
-      // グリッド高さ: 本体 SVG の height 属性から取得 (= rowHeight × tasks数)
+      // ---- キャッシュ済み位置で rect を注入 ----
       const bodySvg = el.querySelector<SVGSVGElement>("._2B2zv svg");
       const gridHeight = bodySvg ? parseFloat(bodySvg.getAttribute("height") ?? "0") : 0;
+      if (gridHeight === 0) return;
 
-      // 土日判定のアンカー: "today" rect の x 座標 + Date.getDay()
-      // ロケール非依存で確実。today が表示範囲外の場合は fallback としてテキスト解析
-      const todayRectEl = el.querySelector<SVGRectElement>("g.today rect[x]");
-      const todayX = todayRectEl ? parseFloat(todayRectEl.getAttribute("x") ?? "-1") : -1;
-      const todayColIndex = todayX >= 0 ? Math.round(todayX / columnWidth) : -1;
-      const todayDow = new Date().getDay(); // 0=日, 6=土
-
-      // テキスト解析 fallback 用 (today が範囲外の場合)
-      const locale = window.navigator.language;
-      const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
-      const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
-
-      // 観測を一時停止してから DOM を変更 (observer の無限ループ防止)
       observer?.disconnect();
-
-      // 前回注入分を除去
       el.querySelectorAll(".weekend-highlight").forEach((r) => r.remove());
 
-      textEls.forEach((textEl) => {
-        const original = textEl.textContent ?? "";
-        const x = parseFloat(textEl.getAttribute("x") ?? "0");
-        const colLeft = x - columnWidth / 2;
-        const colIndex = Math.round(colLeft / columnWidth);
-
-        // 曜日を特定: today アンカー優先、なければテキスト解析
-        let isSat = false;
-        let isSun = false;
-        if (todayColIndex >= 0) {
-          const dow = ((todayDow + (colIndex - todayColIndex)) % 7 + 7) % 7;
-          isSat = dow === 6;
-          isSun = dow === 0;
-        } else {
-          isSat = original.startsWith(satName + ",");
-          isSun = original.startsWith(sunName + ",");
-        }
-
-        // 曜日を除いた日付数字のみ表示
-        const parts = original.split(", ");
-        textEl.textContent = parts[parts.length - 1];
-
-        // 土日の列背景色を注入
-        if ((isSat || isSun) && gridHeight > 0) {
-          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-          rect.setAttribute("x", String(colLeft));
-          rect.setAttribute("y", "0");
-          rect.setAttribute("width", String(columnWidth));
-          rect.setAttribute("height", String(gridHeight));
-          rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)");
-          rect.classList.add("weekend-highlight");
-          gridBodyG.insertBefore(rect, gridBodyG.firstChild);
-        }
+      weekendCols.forEach(({ colLeft, isSat }) => {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", String(colLeft));
+        rect.setAttribute("y", "0");
+        rect.setAttribute("width", String(cachedColWidth));
+        rect.setAttribute("height", String(gridHeight));
+        rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.15)" : "rgba(239,68,68,0.15)");
+        rect.classList.add("weekend-highlight");
+        gridBodyG.insertBefore(rect, gridBodyG.firstChild);
       });
 
-      // DOM 変更後に再度観測を開始
       if (observer) observer.observe(gridBodyG, { childList: true });
     };
 
@@ -160,10 +162,9 @@ function GanttWrapper({
       const gridBodyG = el.querySelector<SVGGElement>("g.gridBody");
       if (!gridBodyG) return;
 
-      applyWeekendColors();
+      applyColors();
 
-      // React のリコンシリエーションで rect が消えたら即再注入
-      observer = new MutationObserver(applyWeekendColors);
+      observer = new MutationObserver(applyColors);
       observer.observe(gridBodyG, { childList: true });
     });
 
