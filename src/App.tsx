@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { generateClient } from "aws-amplify/data";
@@ -13,6 +13,56 @@ const _h = {
   moveTask: (_taskId: string, _adjacentTaskId: string) => {},
   openEditTask: (_task: GanttTask) => {},
 };
+
+// gantt-task-react はタッチイベントに対応していないため、
+// 内部のスクロールコンテナを直接操作してモバイルの横スクロールを実現する
+function GanttWithTouchScroll({ children }: { children: React.ReactNode }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isHorizontalScroll = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    // ライブラリの横スクロールコンテナ（HorizontalScroll コンポーネントのラッパー）
+    const getScrollEl = () => el.querySelector<HTMLElement>("._2k9Ys");
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      isHorizontalScroll.current = null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - touchStartX.current;
+      const dy = e.touches[0].clientY - touchStartY.current;
+
+      // 最初のムーブで方向を確定させる
+      if (isHorizontalScroll.current === null) {
+        isHorizontalScroll.current = Math.abs(dx) > Math.abs(dy);
+      }
+      if (!isHorizontalScroll.current) return;
+
+      const scrollEl = getScrollEl();
+      if (!scrollEl) return;
+
+      scrollEl.scrollLeft -= dx;
+      touchStartX.current = e.touches[0].clientX;
+      e.preventDefault();
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
+
+  return <div ref={wrapperRef}>{children}</div>;
+}
 
 function CustomTaskListHeader({
   headerHeight,
@@ -528,18 +578,20 @@ export default function App() {
               タスクがありません。「+ Add Task」から追加してください
             </div>
           ) : (
-            <Gantt
-              tasks={tasks}
-              viewMode={viewMode}
-              onDateChange={handleTaskChange}
-              onProgressChange={handleTaskChange}
-              onDoubleClick={openEditTask}
-              onDelete={deleteTask}
-              listCellWidth={isMobile ? "140px" : "220px"}
-              columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
-              TaskListTable={CustomTaskListTable}
-              TaskListHeader={CustomTaskListHeader}
-            />
+            <GanttWithTouchScroll>
+              <Gantt
+                tasks={tasks}
+                viewMode={viewMode}
+                onDateChange={handleTaskChange}
+                onProgressChange={handleTaskChange}
+                onDoubleClick={openEditTask}
+                onDelete={deleteTask}
+                listCellWidth={isMobile ? "140px" : "220px"}
+                columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
+                TaskListTable={CustomTaskListTable}
+                TaskListHeader={CustomTaskListHeader}
+              />
+            </GanttWithTouchScroll>
           )}
         </div>
       </main>
