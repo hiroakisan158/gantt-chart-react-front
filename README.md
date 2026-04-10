@@ -26,6 +26,54 @@ Vite + React + AWS Amplify Gen2 で構築したシンプルなガントチャー
 
 ---
 
+## AWS Amplify へのデプロイ
+
+AWS Amplify へデプロイすることで自前のサーバで簡単にホストできます。
+
+### 1. GitHubリポジトリを用意する
+
+このリポジトリをご自身の github にフォークするか新規にリポジトリを作成して push してください。
+
+```bash
+git remote add origin https://github.com/<your-username>/gant-chart-react-front.git
+git branch -M main
+git push -u origin main
+```
+
+### 2. Amplify Console でアプリを作成する
+
+1. [AWS Amplify Console](https://console.aws.amazon.com/amplify/) を開く
+2. **「Create new app」** をクリック
+3. **「GitHub」** を選択し、OAuth 認証を許可する
+4. リポジトリ `gant-chart-react-front`、ブランチ `main` を選択する
+5. Build settings はデフォルトのまま（リポジトリ内の `amplify.yml` が自動検出される）
+6. **「Save and deploy」** をクリックする
+
+### 3. デプロイの流れ
+
+Amplify Console が以下を自動で順番に実行します。
+
+```
+Backend phase:
+  npm ci
+  npx ampx pipeline-deploy
+    ├─ DynamoDB テーブル (GanttProject / GanttTask) を作成
+    ├─ Cognito ユーザープールを作成
+    └─ amplify_outputs.json を自動生成
+
+Frontend phase:
+  npm run build  (tsc + vite build)
+    └─ dist/ を CDN に配信
+```
+
+完了後、Amplify Console に表示された URL でアクセスできます。
+
+### 継続的デプロイ
+
+`main` ブランチに push するたびに Amplify Console が自動でビルド・デプロイを実行します。
+
+---
+
 ## ローカル開発
 
 ### 前提条件
@@ -68,52 +116,6 @@ npx ampx sandbox delete
 
 ---
 
-## AWS Amplify へのデプロイ
-
-### 1. GitHubリポジトリを用意する
-
-このリポジトリを GitHub に push してください。
-
-```bash
-git remote add origin https://github.com/<your-username>/gant-chart-react-front.git
-git branch -M main
-git push -u origin main
-```
-
-### 2. Amplify Console でアプリを作成する
-
-1. [AWS Amplify Console](https://console.aws.amazon.com/amplify/) を開く
-2. **「Create new app」** をクリック
-3. **「GitHub」** を選択し、OAuth 認証を許可する
-4. リポジトリ `gant-chart-react-front`、ブランチ `main` を選択する
-5. Build settings はデフォルトのまま（リポジトリ内の `amplify.yml` が自動検出される）
-6. **「Save and deploy」** をクリックする
-
-### 3. デプロイの流れ
-
-Amplify Console が以下を自動で順番に実行します。
-
-```
-Backend phase:
-  npm ci
-  npx ampx pipeline-deploy
-    ├─ DynamoDB テーブル (GanttProject / GanttTask) を作成
-    ├─ Cognito ユーザープールを作成
-    └─ amplify_outputs.json を自動生成
-
-Frontend phase:
-  npm run build  (tsc + vite build)
-    └─ dist/ を CDN に配信
-```
-
-完了後、Amplify Console に表示された URL でアクセスできます。
-
-### 継続的デプロイ
-
-`main` ブランチに push するたびに Amplify Console が自動でビルド・デプロイを実行します。
-
----
-
 ## 注意事項
 
 ### `amplify_outputs.json` について
@@ -129,3 +131,4 @@ Frontend phase:
 - `minimatch` → `overrides` で 10.2.5 以上に固定済み
 
 `npm audit fix --force` は Amplify の CDK 系パッケージを破壊する可能性があるため実行しないでください。
+
