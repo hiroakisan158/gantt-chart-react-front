@@ -244,31 +244,54 @@ function CustomTaskListTable({
             onDragStart={(e) => {
               _drag.sourceIndex = index;
               e.dataTransfer.effectAllowed = "move";
+              // ドラッグ中は半透明にする
+              requestAnimationFrame(() => {
+                (e.target as HTMLElement).style.opacity = "0.4";
+              });
             }}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
-              (e.currentTarget as HTMLDivElement).style.boxShadow =
-                _drag.sourceIndex < index
-                  ? "0 2px 0 0 #3b82f6"
-                  : "0 -2px 0 0 #3b82f6";
+              if (_drag.sourceIndex === index) return;
+              // 全インジケーターを消してから対象だけ表示
+              document.querySelectorAll<HTMLElement>("[data-drop-line]").forEach(
+                (el) => { el.style.display = "none"; }
+              );
+              const side = _drag.sourceIndex > index ? "top" : "bottom";
+              const line = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(
+                `[data-drop-line="${side}"]`
+              );
+              if (line) line.style.display = "flex";
             }}
-            onDragLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "";
+            onDragLeave={() => {
+              document.querySelectorAll<HTMLElement>("[data-drop-line]").forEach(
+                (el) => { el.style.display = "none"; }
+              );
             }}
             onDrop={(e) => {
               e.preventDefault();
-              (e.currentTarget as HTMLDivElement).style.boxShadow = "";
+              document.querySelectorAll<HTMLElement>("[data-drop-line]").forEach(
+                (el) => { el.style.display = "none"; }
+              );
+              document.querySelectorAll<HTMLElement>("[data-drag-row]").forEach(
+                (el) => { el.style.opacity = ""; }
+              );
               const from = _drag.sourceIndex;
               _drag.sourceIndex = -1;
               if (from !== -1 && from !== index) {
                 _h.reorderTask(from, index);
               }
             }}
-            onDragEnd={() => {
+            onDragEnd={(e) => {
               _drag.sourceIndex = -1;
+              (e.currentTarget as HTMLElement).style.opacity = "";
+              document.querySelectorAll<HTMLElement>("[data-drop-line]").forEach(
+                (el) => { el.style.display = "none"; }
+              );
             }}
+            data-drag-row
             style={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
               height: rowHeight,
@@ -279,6 +302,56 @@ function CustomTaskListTable({
               background: "#fff",
             }}
           >
+            {/* ドロップ位置インジケーター（上） */}
+            <div
+              data-drop-line="top"
+              style={{
+                display: "none",
+                position: "absolute",
+                top: -2,
+                left: 0,
+                right: 0,
+                height: 3,
+                background: "#3b82f6",
+                borderRadius: 2,
+                zIndex: 20,
+                pointerEvents: "none",
+                alignItems: "center",
+              }}
+            >
+              <div style={{
+                width: 8, height: 8,
+                borderRadius: "50%",
+                background: "#3b82f6",
+                flexShrink: 0,
+                marginLeft: 0,
+                marginTop: 0,
+              }} />
+            </div>
+            {/* ドロップ位置インジケーター（下） */}
+            <div
+              data-drop-line="bottom"
+              style={{
+                display: "none",
+                position: "absolute",
+                bottom: -2,
+                left: 0,
+                right: 0,
+                height: 3,
+                background: "#3b82f6",
+                borderRadius: 2,
+                zIndex: 20,
+                pointerEvents: "none",
+                alignItems: "center",
+              }}
+            >
+              <div style={{
+                width: 8, height: 8,
+                borderRadius: "50%",
+                background: "#3b82f6",
+                flexShrink: 0,
+              }} />
+            </div>
             {/* ドラッグハンドル */}
             <span
               style={{
