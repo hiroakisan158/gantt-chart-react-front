@@ -629,9 +629,13 @@ export default function App() {
     );
   }
 
-  // 時刻を切り捨てて日の境界（ローカル 0:00:00）に丸める
+  // 12時を超えていたら翌日、超えていなかったら当日の 0:00 にスナップ
   function snapToDay(date: Date): Date {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    if (date.getHours() >= 12) {
+      day.setDate(day.getDate() + 1);
+    }
+    return day;
   }
 
   async function handleTaskChange(task: GanttTask) {
@@ -861,7 +865,6 @@ export default function App() {
                 onDelete={deleteTask}
                 listCellWidth={isMobile ? "140px" : "220px"}
                 columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
-                timeStep={86400000}
                 TaskListTable={CustomTaskListTable}
                 TaskListHeader={CustomTaskListHeader}
               />
