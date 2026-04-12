@@ -556,11 +556,18 @@ export default function App() {
     );
   }
 
+  // 時刻を切り捨てて日の境界（ローカル 0:00:00）に丸める
+  function snapToDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
   async function handleTaskChange(task: GanttTask) {
+    const start = snapToDay(task.start);
+    const end = snapToDay(task.end);
     const { data } = await client.models.GanttTask.update({
       id: task.id,
-      start: task.start.toISOString(),
-      end: task.end.toISOString(),
+      start: start.toISOString(),
+      end: end.toISOString(),
       progress: task.progress,
     });
     if (data) {
@@ -781,6 +788,7 @@ export default function App() {
                 onDelete={deleteTask}
                 listCellWidth={isMobile ? "140px" : "220px"}
                 columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
+                timeStep={86400000}
                 TaskListTable={CustomTaskListTable}
                 TaskListHeader={CustomTaskListHeader}
               />
