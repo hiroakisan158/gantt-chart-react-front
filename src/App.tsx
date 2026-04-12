@@ -413,11 +413,18 @@ type Project = Schema["GanttProject"]["type"];
 type TaskRecord = Schema["GanttTask"]["type"];
 
 function toGanttTask(t: TaskRecord): GanttTask {
+  const start = new Date(t.start);
+  let end = new Date(t.end);
+  // 1日未満のタスクは最低1日幅に補正
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(start);
+    end.setDate(end.getDate() + 1);
+  }
   return {
     id: t.id,
     name: t.name,
-    start: new Date(t.start),
-    end: new Date(t.end),
+    start,
+    end,
     progress: t.progress,
     type: (t.type as GanttTask["type"]) ?? "task",
     project: t.projectId,
@@ -547,11 +554,18 @@ export default function App() {
 
   async function saveTask() {
     if (!selectedProjectId || !taskForm.name.trim()) return;
+    const start = new Date(taskForm.start);
+    let end = new Date(taskForm.end);
+    // 同一日の場合は翌日を終了日にして1日幅を確保
+    if (end.getTime() <= start.getTime()) {
+      end = new Date(start);
+      end.setDate(end.getDate() + 1);
+    }
     const payload = {
       projectId: selectedProjectId,
       name: taskForm.name.trim(),
-      start: new Date(taskForm.start).toISOString(),
-      end: new Date(taskForm.end).toISOString(),
+      start: start.toISOString(),
+      end: end.toISOString(),
       progress: taskForm.progress,
       type: taskForm.type,
       displayOrder: editingTask
@@ -638,9 +652,20 @@ export default function App() {
     return day;
   }
 
+  // end が start 以下の場合、start + 1日に補正
+  function ensureMinOneDay(start: Date, end: Date): Date {
+    if (end.getTime() <= start.getTime()) {
+      const next = new Date(start);
+      next.setDate(next.getDate() + 1);
+      return next;
+    }
+    return end;
+  }
+
   async function handleTaskChange(task: GanttTask) {
     const start = snapToDay(task.start);
-    const end = snapToDay(task.end);
+    let end = snapToDay(task.end);
+    end = ensureMinOneDay(start, end);
     const { data } = await client.models.GanttTask.update({
       id: task.id,
       start: start.toISOString(),
