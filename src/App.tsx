@@ -12,7 +12,11 @@ const client = generateClient<Schema>();
 const _h = {
   moveTask: (_taskId: string, _adjacentTaskId: string) => {},
   openEditTask: (_task: GanttTask) => {},
+  reorderTask: (_fromIndex: number, _toIndex: number) => {},
 };
+
+// Drag state shared between list rows (no React state needed)
+const _drag = { sourceIndex: -1 };
 
 // gantt-task-react はタッチ・カレンダーカスタマイズ API を持たないため、
 // DOM を直接操作してモバイル対応を行うラッパー
@@ -236,6 +240,34 @@ function CustomTaskListTable({
         return (
           <div
             key={task.id}
+            draggable
+            onDragStart={(e) => {
+              _drag.sourceIndex = index;
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              (e.currentTarget as HTMLDivElement).style.boxShadow =
+                _drag.sourceIndex < index
+                  ? "0 2px 0 0 #3b82f6"
+                  : "0 -2px 0 0 #3b82f6";
+            }}
+            onDragLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "";
+              const from = _drag.sourceIndex;
+              _drag.sourceIndex = -1;
+              if (from !== -1 && from !== index) {
+                _h.reorderTask(from, index);
+              }
+            }}
+            onDragEnd={() => {
+              _drag.sourceIndex = -1;
+            }}
             style={{
               display: "flex",
               alignItems: "center",
@@ -247,6 +279,21 @@ function CustomTaskListTable({
               background: "#fff",
             }}
           >
+            {/* ドラッグハンドル */}
+            <span
+              style={{
+                flexShrink: 0,
+                marginRight: 2,
+                fontSize: "0.75em",
+                color: "#94a3b8",
+                cursor: "grab",
+                userSelect: "none",
+                letterSpacing: "-1px",
+              }}
+              title="ドラッグして並び替え"
+            >
+              ⠿
+            </span>
             <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, marginRight: 4 }}>
               <button
                 onMouseDown={(e) => {
@@ -344,6 +391,7 @@ export default function App() {
   // Always sync _h with the latest closures before render
   _h.moveTask = moveTask;
   _h.openEditTask = openEditTask;
+  _h.reorderTask = reorderTask;
 
   // Load projects on mount
   useEffect(() => {
@@ -480,6 +528,32 @@ export default function App() {
       client.models.GanttTask.update({ id: taskId, displayOrder: orderB }),
       client.models.GanttTask.update({ id: adjacentTaskId, displayOrder: orderA }),
     ]);
+  }
+
+  async function reorderTask(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+
+    // Build new order
+    const newTasks = [...tasks];
+    const [moved] = newTasks.splice(fromIndex, 1);
+    newTasks.splice(toIndex, 0, moved);
+
+    // Assign contiguous displayOrder values
+    const updated = newTasks.map((t, i) => ({ ...t, displayOrder: i + 1 }));
+
+    // Optimistic update
+    setTasks(updated);
+
+    // Persist only changed tasks
+    const changed = updated.filter((t) => {
+      const orig = tasks.find((o) => o.id === t.id);
+      return orig?.displayOrder !== t.displayOrder;
+    });
+    await Promise.all(
+      changed.map((t) =>
+        client.models.GanttTask.update({ id: t.id, displayOrder: t.displayOrder })
+      )
+    );
   }
 
   async function handleTaskChange(task: GanttTask) {
