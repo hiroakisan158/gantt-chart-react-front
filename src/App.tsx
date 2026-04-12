@@ -981,7 +981,28 @@ export default function App() {
                 </select>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              {editingTask && (
+                <button
+                  onClick={() => {
+                    if (confirm("このタスクを削除しますか？")) {
+                      deleteTask(editingTask);
+                      setShowTaskModal(false);
+                    }
+                  }}
+                  style={{
+                    padding: "8px 20px",
+                    background: "#fee2e2",
+                    color: "#dc2626",
+                    border: "1px solid #fca5a5",
+                    borderRadius: 6,
+                    fontWeight: 600,
+                  }}
+                >
+                  削除
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
               <button onClick={() => setShowTaskModal(false)} style={cancelBtnStyle}>
                 キャンセル
               </button>
