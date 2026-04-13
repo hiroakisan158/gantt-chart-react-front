@@ -554,13 +554,10 @@ export default function App() {
 
   async function saveTask() {
     if (!selectedProjectId || !taskForm.name.trim()) return;
-    const start = new Date(taskForm.start);
-    let end = new Date(taskForm.end);
-    // 同一日の場合は翌日を終了日にして1日幅を確保
-    if (end.getTime() <= start.getTime()) {
-      end = new Date(start);
-      end.setDate(end.getDate() + 1);
-    }
+    // date input の値は "YYYY-MM-DD" 形式 → ローカル 0:00 にスナップ
+    const start = snapToDay(new Date(taskForm.start));
+    let end = snapToDay(new Date(taskForm.end));
+    end = ensureMinOneDay(start, end);
     const payload = {
       projectId: selectedProjectId,
       name: taskForm.name.trim(),
