@@ -435,7 +435,11 @@ function toGanttTask(t: TaskRecord): GanttTask {
 
 const TODAY = new Date();
 function fmtDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  // ローカル時刻ベースで "YYYY-MM-DD" を返す（toISOString は UTC になってズレる）
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function App() {
