@@ -874,7 +874,7 @@ export default function App() {
         </div>
 
         {/* Gantt area */}
-        <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "0 16px 16px" }}>
           {!selectedProjectId ? (
             <div style={{ color: "#94a3b8", textAlign: "center", marginTop: 80, fontSize: "1.1em" }}>
               左のサイドバーからプロジェクトを選択するか、新規作成してください
