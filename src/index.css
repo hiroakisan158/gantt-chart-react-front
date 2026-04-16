@@ -14,15 +14,3 @@ button {
   cursor: pointer;
 }
 
-/* ガントチャートの日付ヘッダーをスクロール時に固定表示 */
-._CZjuD {
-  overflow-x: hidden !important;
-  overflow-y: visible !important;
-}
-
-._CZjuD > svg:first-child {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #fff;
-}

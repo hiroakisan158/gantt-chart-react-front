@@ -71,6 +71,39 @@ function GanttWrapper({
     };
   }, []);
 
+  // ── 日付ヘッダー固定（スクロール追従） ─────────────────────────
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    // スクロールコンテナ = GanttWrapper の親（overflow: auto の div）
+    const scrollContainer = el.parentElement;
+    if (!scrollContainer) return;
+
+    const onScroll = () => {
+      // カレンダーヘッダー SVG（._CZjuD の最初の子 SVG）
+      const calendarSvg = el.querySelector<SVGSVGElement>("._CZjuD > svg:first-child");
+      // タスクリストヘッダー（._3eULf の最初の div の最初の子 div）
+      const taskListHeader = el.querySelector<HTMLElement>("._3eULf > div:first-child > div:first-child");
+
+      const scrollTop = scrollContainer.scrollTop;
+
+      if (calendarSvg) {
+        calendarSvg.style.transform = `translateY(${scrollTop}px)`;
+        calendarSvg.style.zIndex = "10";
+        calendarSvg.style.position = "relative";
+      }
+      if (taskListHeader) {
+        taskListHeader.style.transform = `translateY(${scrollTop}px)`;
+        taskListHeader.style.zIndex = "10";
+        taskListHeader.style.position = "relative";
+        taskListHeader.style.background = "#fff";
+      }
+    };
+
+    scrollContainer.addEventListener("scroll", onScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", onScroll);
+  }, [tasks]);
+
   // ── Day ビュー: 土日色付け & モバイルのみ曜日テキスト簡略化 ──────
   useEffect(() => {
     if (viewMode !== ViewMode.Day) return;
@@ -210,9 +243,6 @@ function CustomTaskListHeader({
         fontWeight: 600,
         fontSize: "0.8em",
         color: "#64748b",
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
       }}
     >
       タスク名
