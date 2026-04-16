@@ -210,6 +210,9 @@ function CustomTaskListHeader({
         fontWeight: 600,
         fontSize: "0.8em",
         color: "#64748b",
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
       }}
     >
       タスク名
