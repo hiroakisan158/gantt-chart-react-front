@@ -16,7 +16,8 @@ button {
 
 /* ガントチャートの日付ヘッダーをスクロール時に固定表示 */
 ._CZjuD {
-  overflow: visible !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
 }
 
 ._CZjuD > svg:first-child {
