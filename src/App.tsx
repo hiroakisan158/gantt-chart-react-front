@@ -517,7 +517,12 @@ export default function App() {
         (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
       );
       setProjects(sorted);
-      if (sorted.length > 0) setSelectedProjectId(sorted[0].id);
+      if (sorted.length > 0) {
+        const latest = [...sorted].sort(
+          (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")
+        )[0];
+        setSelectedProjectId(latest.id);
+      }
     });
   }, []);
 
