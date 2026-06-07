@@ -106,6 +106,14 @@ function GanttWrapper({
       const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
       const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
 
+      // 曜日名 → 日本語1文字のフォールバックマップ (2024-01-07 は日曜)
+      const JA_DOW = ["日", "月", "火", "水", "木", "金", "土"];
+      const dowNameMap = new Map<string, string>();
+      for (let d = 0; d < 7; d++) {
+        const name = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7 + d));
+        dowNameMap.set(name, JA_DOW[d]);
+      }
+
       textEls.forEach((textEl) => {
         const original = textEl.textContent ?? "";
         const x = parseFloat(textEl.getAttribute("x") ?? "0");
@@ -118,16 +126,14 @@ function GanttWrapper({
           const dow = ((todayDow + colIndex - todayColIndex) % 7 + 7) % 7;
           isSat = dow === 6;
           isSun = dow === 0;
+          textEl.textContent = JA_DOW[dow];
         } else {
           isSat = original.startsWith(satName + ",");
           isSun = original.startsWith(sunName + ",");
+          const jaChar = dowNameMap.get(original.split(",")[0].trim());
+          if (jaChar) textEl.textContent = jaChar;
         }
         if (isSat || isSun) weekendCols.push({ colLeft, isSat });
-
-        if (isMobile) {
-          const parts = original.split(", ");
-          textEl.textContent = parts[parts.length - 1];
-        }
       });
     };
 
@@ -928,7 +934,7 @@ export default function App() {
                 onDoubleClick={openEditTask}
                 onDelete={deleteTask}
                 listCellWidth={isMobile ? "140px" : "220px"}
-                columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : (isMobile ? 40 : 60)}
+                columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : 30}
                 TaskListTable={CustomTaskListTable}
                 TaskListHeader={CustomTaskListHeader}
               />
