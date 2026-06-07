@@ -120,13 +120,6 @@ function GanttWrapper({
         const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
         const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
 
-        const JA_DOW = ["日", "月", "火", "水", "木", "金", "土"];
-        const dowNameMap = new Map<string, string>();
-        for (let d = 0; d < 7; d++) {
-          const name = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7 + d));
-          dowNameMap.set(name, JA_DOW[d]);
-        }
-
         textEls.forEach((textEl) => {
           const original = textEl.textContent ?? "";
           const x = parseFloat(textEl.getAttribute("x") ?? "0");
@@ -138,14 +131,14 @@ function GanttWrapper({
             const dow = ((todayDow + colIndex - todayColIndex) % 7 + 7) % 7;
             isSat = dow === 6;
             isSun = dow === 0;
-            textEl.textContent = JA_DOW[dow];
           } else {
             isSat = original.startsWith(satName + ",");
             isSun = original.startsWith(sunName + ",");
-            const jaChar = dowNameMap.get(original.split(",")[0].trim());
-            if (jaChar) textEl.textContent = jaChar;
           }
           if (isSat || isSun) weekendCols.push({ colLeft, isSat });
+
+          const parts = original.split(", ");
+          textEl.textContent = parts[parts.length - 1];
         });
       }
       const bodySvg = el.querySelector<SVGSVGElement>("._2B2zv svg");
