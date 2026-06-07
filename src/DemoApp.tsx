@@ -172,9 +172,8 @@ function GanttWrapper({
 
       // ---- 今日ハイライト ----
       if (cachedTodayX >= 0 && !gridBodyG.querySelector(".today-highlight")) {
-        const todayColLeft = cachedTodayX - cachedColWidth / 2;
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", String(todayColLeft));
+        rect.setAttribute("x", String(cachedTodayX));
         rect.setAttribute("y", "0");
         rect.setAttribute("width", String(cachedColWidth));
         rect.setAttribute("height", String(gridHeight));
@@ -190,7 +189,7 @@ function GanttWrapper({
       if (scrolledToToday || cachedTodayX < 0) return;
       const hScrollEl = el.querySelector<HTMLElement>("._2k9Ys");
       if (!hScrollEl) return;
-      hScrollEl.scrollLeft = cachedTodayX - hScrollEl.offsetWidth / 2;
+      hScrollEl.scrollLeft = cachedTodayX + cachedColWidth / 2 - hScrollEl.offsetWidth / 2;
       scrolledToToday = true;
     };
 
