@@ -81,6 +81,8 @@ function GanttWrapper({
     // ---- 週末列キャッシュ ----
     let weekendCols: Array<{ colLeft: number; isSat: boolean }> = [];
     let cachedColWidth = 40;
+    let cachedTodayX = -1;
+    let scrolledToToday = false;
     let observer: MutationObserver | null = null;
     let rafPending = false;
 
@@ -99,6 +101,7 @@ function GanttWrapper({
 
       const todayRectEl = el.querySelector<SVGRectElement>("g.today rect[x]");
       const todayX = todayRectEl ? parseFloat(todayRectEl.getAttribute("x") ?? "-1") : -1;
+      cachedTodayX = todayX;
       const todayColIndex = todayX >= 0 ? Math.round(todayX / cachedColWidth) : -1;
       const todayDow = new Date().getDay();
 
@@ -137,28 +140,49 @@ function GanttWrapper({
 
       const bodySvg = el.querySelector<SVGSVGElement>("._2B2zv svg");
       const gridHeight = bodySvg ? parseFloat(bodySvg.getAttribute("height") ?? "0") : 0;
-      if (gridHeight === 0 || weekendCols.length === 0) return;
-
-      // 既に正しく挿入済みなら何もしない
-      const existing = gridBodyG.querySelectorAll(".weekend-highlight");
-      if (existing.length === weekendCols.length) return;
-
-      // 不完全な状態なら削除して再挿入
-      existing.forEach((r) => r.remove());
+      if (gridHeight === 0) return;
 
       const rowsG = gridBodyG.querySelector<SVGGElement>("g.rows");
       const insertAfterRows = rowsG ? rowsG.nextSibling : gridBodyG.firstChild;
 
-      weekendCols.forEach(({ colLeft, isSat }) => {
+      // ---- 週末ハイライト ----
+      if (weekendCols.length > 0) {
+        const existing = gridBodyG.querySelectorAll(".weekend-highlight");
+        if (existing.length !== weekendCols.length) {
+          existing.forEach((r) => r.remove());
+          weekendCols.forEach(({ colLeft, isSat }) => {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(colLeft));
+            rect.setAttribute("y", "0");
+            rect.setAttribute("width", String(cachedColWidth));
+            rect.setAttribute("height", String(gridHeight));
+            rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.22)" : "rgba(239,68,68,0.22)");
+            rect.classList.add("weekend-highlight");
+            gridBodyG.insertBefore(rect, insertAfterRows);
+          });
+        }
+      }
+
+      // ---- 今日ハイライト ----
+      if (cachedTodayX >= 0 && !gridBodyG.querySelector(".today-highlight")) {
+        const todayColLeft = cachedTodayX - cachedColWidth / 2;
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", String(colLeft));
+        rect.setAttribute("x", String(todayColLeft));
         rect.setAttribute("y", "0");
         rect.setAttribute("width", String(cachedColWidth));
         rect.setAttribute("height", String(gridHeight));
-        rect.setAttribute("fill", isSat ? "rgba(59,130,246,0.22)" : "rgba(239,68,68,0.22)");
-        rect.classList.add("weekend-highlight");
+        rect.setAttribute("fill", "rgba(250, 204, 21, 0.4)");
+        rect.classList.add("today-highlight");
         gridBodyG.insertBefore(rect, insertAfterRows);
-      });
+      }
+    };
+
+    const scrollToToday = () => {
+      if (scrolledToToday || cachedTodayX < 0) return;
+      const hScrollEl = el.querySelector<HTMLElement>("._2k9Ys");
+      if (!hScrollEl) return;
+      hScrollEl.scrollLeft = cachedTodayX - hScrollEl.offsetWidth / 2;
+      scrolledToToday = true;
     };
 
     // ---- スクロール追従 + 色付け再適用 ----
@@ -196,7 +220,10 @@ function GanttWrapper({
 
     // ---- 初期化 ----
     const rafId = requestAnimationFrame(() => {
-      if (viewMode === ViewMode.Day) applyWeekendColors();
+      if (viewMode === ViewMode.Day) {
+        applyWeekendColors();
+        scrollToToday();
+      }
 
       const ganttContainer = el.querySelector<HTMLElement>("._CZjuD");
       if (ganttContainer) {
@@ -212,6 +239,7 @@ function GanttWrapper({
       scrollContainer.removeEventListener("scroll", onScroll);
       observer?.disconnect();
       el.querySelectorAll(".weekend-highlight").forEach((r) => r.remove());
+      el.querySelectorAll(".today-highlight").forEach((r) => r.remove());
     };
   }, [isMobile, viewMode, tasks]);
 
@@ -926,7 +954,7 @@ export default function App() {
                 onDoubleClick={openEditTask}
                 onDelete={deleteTask}
                 listCellWidth={isMobile ? "140px" : "220px"}
-                columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : 30}
+                columnWidth={viewMode === ViewMode.Month ? (isMobile ? 160 : 300) : viewMode === ViewMode.Week ? (isMobile ? 140 : 250) : 18}
                 TaskListTable={CustomTaskListTable}
                 TaskListHeader={CustomTaskListHeader}
               />
