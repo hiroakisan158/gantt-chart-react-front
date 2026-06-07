@@ -22,6 +22,12 @@
 | `._3eULf > div:first-child > div:first-child` | Task list header div (sticky transform applied here) |
 | `._2B2zv svg` | Grid body SVG (read `height` attribute for weekend rect height) |
 
+## Day-view column width and weekday labels
+
+`columnWidth` for Day view is fixed at **30px** for both PC and mobile. Week/Month views retain separate mobile/desktop values.
+
+Day-view header cells (`text._9w8d5`) are rewritten to single Japanese weekday characters (月火水木金土日) via DOM mutation in `GanttWrapper`. The replacement uses column-index arithmetic relative to today's DOW; when today is off-screen it falls back to a `Map<locale_short_name, JA_char>` built with `Intl.DateTimeFormat`.
+
 ## `npm audit fix --force` is prohibited
 
 Running `npm audit fix --force` will downgrade or break `@aws-amplify/backend` and CDK packages. Known vulnerabilities are all in `devDependencies` and do not affect the production bundle. See README for details.
