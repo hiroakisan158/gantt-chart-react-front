@@ -22,11 +22,15 @@
 | `._3eULf > div:first-child > div:first-child` | Task list header div (sticky transform applied here) |
 | `._2B2zv svg` | Grid body SVG (read `height` attribute for weekend rect height) |
 
-## Day-view column width and weekday labels
+## Day-view column width and header labels
 
-`columnWidth` for Day view is fixed at **30px** for both PC and mobile. Week/Month views retain separate mobile/desktop values.
+`columnWidth` for Day view is fixed at **18px** for both PC and mobile. Week/Month views retain separate mobile/desktop values.
 
-Day-view header cells (`text._9w8d5`) are rewritten to single Japanese weekday characters (月火水木金土日) via DOM mutation in `GanttWrapper`. The replacement uses column-index arithmetic relative to today's DOW; when today is off-screen it falls back to a `Map<locale_short_name, JA_char>` built with `Intl.DateTimeFormat`.
+Day-view header cells (`text._9w8d5`) show only the day-of-month number. The original library text format is `"Mon, 7"`; `GanttWrapper` replaces `textContent` with the last segment after splitting on `", "`.
+
+On initial render, `GanttWrapper` scrolls the horizontal container (`._2k9Ys`) so today's column is centered: `scrollLeft = todayX - containerWidth / 2`. This runs once per view-mode change (guarded by `scrolledToToday` flag).
+
+Today's column is highlighted with an amber rect (`rgba(250,204,21,0.4)`) injected into `g.gridBody`, restored by the same MutationObserver that restores weekend rects.
 
 ## `npm audit fix --force` is prohibited
 
