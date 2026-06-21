@@ -7,6 +7,13 @@ import type { Schema } from "../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
+// Gantt の locale はデフォルトが "en-GB"。曜日ラベル ("Sat, 2" 等) の描画と
+// 週末検出の判定でロケールが食い違うと土日色が出ないため、両者でこの定数を共有する。
+const GANTT_LOCALE = window.navigator.language;
+
+// Day ビューの表示期間を広げる（先頭側バッファ＝日数）。末尾側はライブラリ固定(+19日)。
+const PRE_STEPS_COUNT = 7;
+
 // Module-level object updated on every App render.
 // Avoids stale-closure / context-propagation issues with gantt-task-react.
 const _h = {
@@ -115,9 +122,8 @@ function GanttWrapper({
       const todayColIndex = todayX >= 0 ? Math.round(todayX / cachedColWidth) : -1;
       const todayDow = new Date().getDay();
 
-      const locale = window.navigator.language;
-      const satName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 6));
-      const sunName = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 7));
+      const satName = new Intl.DateTimeFormat(GANTT_LOCALE, { weekday: "short" }).format(new Date(2024, 0, 6));
+      const sunName = new Intl.DateTimeFormat(GANTT_LOCALE, { weekday: "short" }).format(new Date(2024, 0, 7));
 
       textEls.forEach((textEl) => {
         const original = textEl.textContent ?? "";
@@ -965,6 +971,8 @@ export default function App() {
               <Gantt
                 tasks={tasks}
                 viewMode={viewMode}
+                locale={GANTT_LOCALE}
+                preStepsCount={PRE_STEPS_COUNT}
                 onDateChange={handleTaskChange}
                 onProgressChange={handleTaskChange}
                 onDoubleClick={openEditTask}

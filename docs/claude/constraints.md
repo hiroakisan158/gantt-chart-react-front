@@ -26,6 +26,12 @@
 
 `columnWidth` for Day view is fixed at **18px** for both PC and mobile. Week/Month views retain separate mobile/desktop values.
 
+`preStepsCount` is passed as `PRE_STEPS_COUNT` (7) to widen the leading buffer (Day view: days before the earliest task). The trailing buffer is hard-coded by the library (+19 days for Day view) and cannot be changed via props.
+
+### Gantt `locale` must match the weekend-detection locale
+
+`gantt-task-react`'s `locale` prop **defaults to `"en-GB"`**, so weekday labels render as `"Sat, 2"` / `"Sun, 3"`. The weekend-detection fallback matches the rendered prefix against day names computed from a locale. If the two disagree, the prefix never matches and **weekends are never highlighted** for any column that today's-column math can't reach (i.e. whenever today is outside the chart range — far-future projects). Both `App.tsx` and `DemoApp.tsx` pass `locale={GANTT_LOCALE}` (`= window.navigator.language`) to `<Gantt>` and use the same `GANTT_LOCALE` constant when computing the Saturday/Sunday names. Keep these in sync.
+
 Day-view header cells (`text._9w8d5`) show only the day-of-month number. The original library text format is `"Mon, 7"`; `GanttWrapper` replaces `textContent` with the last segment after splitting on `", "`.
 
 On initial render, `GanttWrapper` scrolls the horizontal container (`._2k9Ys`) so today's column is centered: `scrollLeft = todayX - containerWidth / 2`. This runs once per view-mode change (guarded by `scrolledToToday` flag).
