@@ -115,17 +115,24 @@ function GanttWrapper({
         const colLeft = x - cachedColWidth / 2;
         const colIndex = Math.round(colLeft / cachedColWidth);
 
-        let isSat = false;
-        let isSun = false;
+        let dow = -1;
         if (todayColIndex >= 0) {
-          const dow = ((todayDow + colIndex - todayColIndex) % 7 + 7) % 7;
-          isSat = dow === 6;
-          isSun = dow === 0;
+          dow = ((todayDow + colIndex - todayColIndex) % 7 + 7) % 7;
+          textEl.setAttribute("data-dow", String(dow));
         } else {
-          isSat = original.startsWith(satName + ",");
-          isSun = original.startsWith(sunName + ",");
+          const cached = textEl.getAttribute("data-dow");
+          if (cached !== null) {
+            dow = parseInt(cached, 10);
+          } else if (original.startsWith(satName + ",")) {
+            dow = 6;
+            textEl.setAttribute("data-dow", "6");
+          } else if (original.startsWith(sunName + ",")) {
+            dow = 0;
+            textEl.setAttribute("data-dow", "0");
+          }
         }
-        if (isSat || isSun) weekendCols.push({ colLeft, isSat });
+
+        if (dow === 6 || dow === 0) weekendCols.push({ colLeft, isSat: dow === 6 });
 
         const parts = original.split(", ");
         textEl.textContent = parts[parts.length - 1];

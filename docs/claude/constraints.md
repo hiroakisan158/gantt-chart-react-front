@@ -40,6 +40,15 @@ Running `npm audit fix --force` will downgrade or break `@aws-amplify/backend` a
 
 Weekend `<rect>` elements are removed by React re-renders (gantt-task-react replaces DOM nodes). A `MutationObserver` on `g.gridBody` re-applies them via `requestAnimationFrame` after each mutation. The observer is disconnected during re-insertion to avoid infinite loops, then re-connected after.
 
+### Weekend detection — `data-dow` cache on date labels
+
+Each Day-view date label (`text._9w8d5`) gets a `data-dow` attribute (`0`–`6`) recording its day of week. This is required because two things can break naive detection when tasks are moved far from today:
+
+1. **Today goes out of range.** `ganttDateRange` (Day) starts the chart at *earliest task start − 1 day*, so if all tasks are next month, today is never rendered — `g.today rect` has no `x` attribute and `todayX = -1`, making the column-index weekday math impossible.
+2. **Reused labels keep stripped text.** gantt-task-react keys labels by `date.getTime()`; overlapping columns are reused as the same DOM nodes. Their `textContent` was already rewritten `"土, 21"` → `"21"` (React leaves it untouched since the value is unchanged), so the `"土,"` / `"日,"` prefix fallback also fails.
+
+With both true, the old code could not determine the weekday and weekend coloring disappeared permanently. The fix: when the weekday *is* known (today in range → column math, or fresh `"土, 21"` text → prefix match), write it to `data-dow` **before** stripping the text. Detection reads `data-dow` first, so reused/stripped labels still resolve their weekday after today leaves the range. `dow` is intrinsic to the date, so the cache never goes stale even as the label's `x`/column index shifts on re-layout.
+
 ## `displayOrder` reorder strategy
 
 `moveTask` swaps `displayOrder` values between two adjacent tasks (O(1) DB writes). `reorderTask` (drag-and-drop) assigns contiguous `1..n` values to all tasks after computing the new order — it only writes records whose `displayOrder` actually changed.
