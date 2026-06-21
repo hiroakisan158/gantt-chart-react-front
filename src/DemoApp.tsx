@@ -100,10 +100,22 @@ function GanttWrapper({
     let cachedTodayX = -1;
     let scrolledToToday = false;
     let observer: MutationObserver | null = null;
+    let colSignature = "";
 
     const applyColors = () => {
       const gridBodyG = el.querySelector<SVGGElement>("g.gridBody");
       if (!gridBodyG) return;
+      // 列構成（本数・末尾位置）が変わったら再計算する。gantt は dateSetup を
+      // 段階的に更新するため、最初の検出が旧範囲の DOM に対して走ると以降に現れた
+      // 列に色がつかなくなる。data-dow キャッシュにより strip 済みでも再検出できる。
+      const sigEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
+      const sig = sigEls.length > 0
+        ? `${sigEls.length}:${sigEls[sigEls.length - 1].getAttribute("x") ?? ""}`
+        : "";
+      if (sig !== "" && sig !== colSignature) {
+        colSignature = sig;
+        weekendCols = [];
+      }
       if (weekendCols.length === 0) {
         const textEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
         if (textEls.length === 0) return;

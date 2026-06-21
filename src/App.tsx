@@ -85,11 +85,21 @@ function GanttWrapper({
     let scrolledToToday = false;
     let observer: MutationObserver | null = null;
     let rafPending = false;
+    let colSignature = "";
 
     const calcWeekendCols = () => {
-      if (weekendCols.length > 0) return;
       const textEls = el.querySelectorAll<SVGTextElement>("text._9w8d5");
       if (textEls.length === 0) return;
+
+      // 列構成（本数・末尾位置）が変わったら再計算する。
+      // gantt は dateSetup を段階的に更新するため、最初の検出が旧範囲の DOM に
+      // 対して走ると weekendCols が途中までしかキャッシュされず、以降に現れた列に
+      // 色がつかなくなる。data-dow キャッシュにより strip 済みでも再検出できる。
+      const lastX = textEls[textEls.length - 1].getAttribute("x") ?? "";
+      const sig = `${textEls.length}:${lastX}`;
+      if (sig === colSignature) return;
+      colSignature = sig;
+      weekendCols = [];
 
       if (textEls.length >= 2) {
         const x0 = parseFloat(textEls[0].getAttribute("x") ?? "0");
